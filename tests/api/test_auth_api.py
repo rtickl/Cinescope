@@ -42,7 +42,7 @@ class TestAuthAPI:
             method="POST",
             endpoint=LOGIN_ENDPOINT,
             data=login_data,
-            expected_status=200
+            expected_status=201
         )
 
         json_resp = login_response.json()

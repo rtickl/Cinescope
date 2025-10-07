@@ -28,22 +28,14 @@ class CustomRequester:
         self.logger.setLevel(logging.INFO)
 
     def send_request(
-        self,
-        method,
-        endpoint,
-        expected_status=200,
-        data = None,
-        params = None
+            self,
+            method,
+            endpoint,
+            expected_status,
+            data=None,
+            params=None
     ):
-        """
-        Универсальный метод для отправки запросов.
-        :param method: HTTP метод (GET, POST, PUT, DELETE и т.д.).
-        :param endpoint: Эндпоинт (например, "/login").
-        :param data: Тело запроса (JSON-данные).
-        :param expected_status: Ожидаемый статус-код (по умолчанию 200).
-        :param params: Параметры (по умолчанию None).
-        :return: Объект ответа requests.Response.
-        """
+        """Универсальный метод для отправки запросов."""
         url = f"{self.base_url}{endpoint}"
 
         print("=" * 80)
@@ -87,3 +79,12 @@ class CustomRequester:
         print("\n===== RESPONSE =====")
         print("Status:", response.status_code)
         print("Body:", response.text[:500])
+
+    def _update_session_headers(self, **kwargs):
+        """
+        Обновление заголовков сессии.
+        :param session: Объект requests.Session, предоставленный API-классом.
+        :param kwargs: Дополнительные заголовки.
+        """
+        self.headers.update(kwargs)
+        self.session.headers.update(self.headers)
