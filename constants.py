@@ -12,7 +12,7 @@ ADMIN_CREDENTIALS = {
     "email": "api1@gmail.com",
     "password": "asdqwe123Q"
 }
-
+BASE_URL_MOVIES = "https://api.dev-cinescope.coconutqa.ru"
 BASE_URL_AUTH = "https://auth.dev-cinescope.coconutqa.ru/"
 BASE_URL = "https://api.dev-cinescope.coconutqa.ru/"
 

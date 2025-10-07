@@ -1,5 +1,7 @@
 import pytest
 
+from constants import BASE_URL, BASE_URL_MOVIES
+from custom_requester.custom_requester import CustomRequester
 from utils.data_generator import DataGenerator
 
 class TestMoviesAPI:
@@ -87,33 +89,25 @@ class TestMoviesAPI:
         assert response.status_code == 403, f"Должен получить 403, но получил {response.status_code}"
 
     @pytest.mark.parametrize(
-        "params",
+        "role_fixture, expected_status",
         [
-            {"minPrice": 1, "maxPrice": 500, "locations": ["MSK"], "genreId": 1},
-            {"minPrice": 100, "maxPrice": 1000, "locations": ["SPB"], "genreId": 2},
-            {"minPrice": 10, "maxPrice": 200, "locations": ["MSK", "SPB"], "genreId": 3},
+            ("super_admin", 200),
+            ("admin_user", 403),
+            ("common_user", 403),
         ],
-        ids=["msk_cheap_genre1", "spb_expensive_genre2", "both_cities_mid_genre3"]
     )
-    def test_get_movies_filtered(self, movies_api, params):
-        """Проверка фильтрации фильмов по диапазону цен, локациям и жанру"""
-        response = movies_api.get_movies(params=params)
-        response_data = response.json()
+    def test_delete_movie_roles(self, request, role_fixture, expected_status):
+        super_admin = request.getfixturevalue("super_admin")
+        movie_data = DataGenerator.generate_movie()
+        movie_response = super_admin.api.movies_api.create_movie(movie_data, expected_status=201)
+        movie_id = movie_response.json()["id"]
 
-        movies = response_data.get("movies", [])
-        assert isinstance(movies, list), "Поле 'movies' должно содержать список фильмов"
-        assert len(movies) > 0, "Ответ не должен быть пустым"
+        user = request.getfixturevalue(role_fixture)
 
-        for movie in movies:
-            price = movie.get("price")
-            location = movie.get("location")
-            genre_id = movie.get("genreId")
-            assert params["minPrice"] <= price <= params["maxPrice"], (
-                f"Фильм '{movie.get('name')}' имеет цену вне диапазона: {price}"
-            )
-            assert location in params["locations"], (
-                f"Фильм '{movie.get('name')}' имеет неподходящую локацию: {location}"
-            )
-            assert genre_id == params["genreId"], (
-                f"Фильм '{movie.get('name')}' имеет жанр {genre_id}, ожидался {params['genreId']}"
-            )
+        delete_response = user.api.movies_api.delete_movie(movie_id, expected_status=None)
+        assert delete_response.status_code == expected_status, (
+            f"{role_fixture} получил {delete_response.status_code}, ожидалось {expected_status}"
+        )
+
+        if delete_response.status_code != 200:
+            super_admin.api.movies_api.delete_movie(movie_id, expected_status=200)

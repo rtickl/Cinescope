@@ -5,7 +5,7 @@ from api.api_manager import ApiManager
 from constants import BASE_URL_AUTH, REGISTER_ENDPOINT, ADMIN_CREDENTIALS, Roles
 from custom_requester.custom_requester import CustomRequester
 from entities.user import User
-from resources.user_cred import SuperAdminCreds, AdminCreds
+from resources.user_cred import SuperAdminCreds
 from utils.data_generator import DataGenerator
 from requests import Session
 faker = Faker()
@@ -109,7 +109,7 @@ def movie_fixture_without_deleting(movies_api):
 
     yield movie_id
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def user_session():
     user_pool = []
 
@@ -160,15 +160,45 @@ def common_user(user_session, super_admin, creation_user_data):
     return common_user
 
 @pytest.fixture(scope="session")
-def admin_user(user_session):
-    """Возвращает пользователя с ролью ADMIN."""
-    session = user_session()
+def admin_session():
+    """
+    Фикстура: создаёт пул админских сессий ApiManager.
+    Каждая сессия создаётся без авторизации — токен получит admin_user.
+    """
+    admin_pool = []
+
+    def _create_admin_session():
+        session = requests.Session()
+        admin_manager = ApiManager(session)
+        admin_pool.append(admin_manager)
+        return admin_manager
+
+    yield _create_admin_session
+
+    # Закрываем все созданные сессии после тестов
+    for admin in admin_pool:
+        admin.close_session()
+
+
+@pytest.fixture
+def admin_user(admin_session, super_admin, creation_user_data):
+    """
+    Фикстура: создаёт пользователя с ролью ADMIN через SuperAdmin и авторизует его.
+    """
+    new_session = admin_session()  # создаём новую сессию через admin_session()
+
+    admin_data = creation_user_data.copy()
+    admin_data["roles"] = [Roles.ADMIN.value]
+
+    # создаём админа через super_admin
+    super_admin.api.user_api.create_user(admin_data, expected_status=201)
+
+    # логинимся новым админом
     admin = User(
-        AdminCreds.USERNAME,
-        AdminCreds.PASSWORD,
-        "[ADMIN]",
-        session
+        admin_data["email"],
+        admin_data["password"],
+        admin_data["roles"],
+        new_session
     )
     admin.api.auth_api.authenticate(admin.creds)
     return admin
-
