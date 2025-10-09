@@ -1,22 +1,15 @@
 from api.api_manager import ApiManager
 from constants import REGISTER_ENDPOINT, LOGIN_ENDPOINT
+from models.base_models import RegisterUserResponse
 
 
 class TestAuthAPI:
     """Набор тестов для проверки Auth API (регистрация и логин)."""
-    def test_register_user(self, api_manager: ApiManager, test_user):
-        """
-        Проверка успешной регистрации пользователя.
-        """
-        response = api_manager.auth_api.register_user(test_user)
-        assert response.status_code in [200, 201], \
-            f"Unexpected status {response.status_code}: {response.text}"
+    def test_register_user(self, api_manager: ApiManager, registration_user_data):
+        response = api_manager.auth_api.register_user(user_data=registration_user_data)
+        register_user_response = RegisterUserResponse(**response.json())
+        assert register_user_response.email == registration_user_data.email, "Email не совпадает"
 
-        data = response.json()
-        assert data["email"] == test_user["email"]
-        assert "id" in data
-        assert "roles" in data
-        assert "USER" in data["roles"]
 
     def test_register_and_login_user(self, requester, test_user):
         """
@@ -34,8 +27,8 @@ class TestAuthAPI:
             f"Unexpected status {response.status_code}: {response.text}"
 
         login_data = {
-            "email": test_user["email"],
-            "password": test_user["password"]
+            "email": test_user.email,
+            "password": test_user.password
         }
 
         login_response = requester.send_request(

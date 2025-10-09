@@ -21,7 +21,7 @@ class UserAPI(CustomRequester):
         """Удаление пользователя."""
         return self.send_request(
             method="DELETE",
-            endpoint=f"/users/{user_id}",
+            endpoint=f"user/{user_id}",
             expected_status=expected_status
         )
 
