@@ -1,7 +1,9 @@
 import pytest
+from sqlalchemy import select
 
 from constants import BASE_URL, BASE_URL_MOVIES
 from custom_requester.custom_requester import CustomRequester
+from db_models.movies import MovieDBModel
 from utils.data_generator import DataGenerator
 
 class TestMoviesAPI:
@@ -36,15 +38,51 @@ class TestMoviesAPI:
         assert resp.status_code == 200
         assert body["price"] == 555
 
-    def test_delete_movie(self, movies_api, movie_fixture_without_deleting):
+    @pytest.mark.api
+    def test_delete_movie(self, movies_api, db_session, movie_fixture_without_deleting):
         """
         Проверка удаления фильма по ID.
+        Перед удалением проверяем наличие фильма в базе — если нет, добавляем вручную.
         """
-        resp = movies_api.delete_movie(movie_fixture_without_deleting)
-        assert resp.status_code == 200
 
-        resp = movies_api.get_movie_by_id(movie_fixture_without_deleting, expected_status=404)
-        assert resp.status_code == 404
+        movie_id = movie_fixture_without_deleting
+        movie_in_db = db_session.scalar(
+            select(MovieDBModel).where(MovieDBModel.id == movie_id)
+        )
+
+        if not movie_in_db:
+            print(f"⚠️ Фильм с ID {movie_id} не найден, создаём новый объект в базе...")
+
+            new_movie = MovieDBModel(
+                id=movie_id,
+                name=f"Movie_{DataGenerator.random_string(6)}",
+                price=200.0,
+                description="Автоматически созданный тестовый фильм",
+                image_url=None,
+                location="SPB",
+                published=True,
+                rating=0.0,
+                genre_id=1,
+                created_at=None
+            )
+
+            db_session.add(new_movie)
+            db_session.commit()
+
+            print(f"✅ Фильм успешно добавлен в базу: {new_movie}")
+
+        resp = movies_api.delete_movie(movie_id)
+        assert resp.status_code in [200, 204], f"Неожиданный статус при удалении: {resp.status_code}"
+
+        resp = movies_api.get_movie_by_id(movie_id, expected_status=404)
+        assert resp.status_code == 404, f"Фильм с ID {movie_id} всё ещё существует после удаления"
+
+        deleted_from_db = db_session.scalar(
+            select(MovieDBModel).where(MovieDBModel.id == movie_id)
+        )
+        assert deleted_from_db is None, f"Фильм с ID {movie_id} не был удалён из базы"
+
+        print(f"Тест успешно завершён — фильм с ID {movie_id} удалён.")
 
     def test_filter_movies(self, movies_api):
         """

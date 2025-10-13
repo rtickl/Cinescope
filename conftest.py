@@ -4,9 +4,10 @@ import requests
 from api.api_manager import ApiManager
 from constants import BASE_URL_AUTH, REGISTER_ENDPOINT, ADMIN_CREDENTIALS, Roles
 from custom_requester.custom_requester import CustomRequester
+from db_requester.db_client import get_db_session
+from db_requester.db_helpers import DBHelper
 from entities.user import User
 from models.base_models import UserModel
-
 from resources.user_cred import SuperAdminCreds
 from utils.data_generator import DataGenerator
 from requests import Session
@@ -28,7 +29,6 @@ def api_manager():
 
     return ApiManager(session=session, token=token)
 
-
 @pytest.fixture
 def test_user() -> UserModel:
     """Генерация случайного пользователя для тестов (Pydantic-модель)."""
@@ -40,8 +40,6 @@ def test_user() -> UserModel:
         passwordRepeat=random_password,
         roles=[Roles.USER.value]
     )
-
-
 
 @pytest.fixture(scope="session")
 def registered_user(requester, test_user):
@@ -67,7 +65,6 @@ def requester():
     session = requests.Session()
     return CustomRequester(session=session, base_url=BASE_URL_AUTH)
 
-
 @pytest.fixture(scope="session")
 def session():
     """
@@ -76,7 +73,6 @@ def session():
     http_session = requests.Session()
     yield http_session
     http_session.close()
-
 
 @pytest.fixture(scope="session")
 def movies_api(api_manager):
@@ -123,7 +119,6 @@ def user_session():
     for user in user_pool:
         user.close_session()
 
-
 @pytest.fixture
 def super_admin(user_session):
     new_session = user_session()
@@ -135,15 +130,6 @@ def super_admin(user_session):
     )
     super_admin.api.auth_api.authenticate(super_admin.creds)
     return super_admin
-
-# @pytest.fixture(scope="function")
-# def creation_user_data(test_user):
-#     updated_data = test_user.copy()
-#     updated_data.update({
-#         "verified": True,
-#         "banned": False
-#     })
-#     return updated_data
 
 @pytest.fixture(scope="function")
 def creation_user_data(test_user: UserModel) -> UserModel:
@@ -186,20 +172,14 @@ def admin_session():
     for admin in admin_pool:
         admin.close_session()
 
-
 @pytest.fixture
 def admin_user(admin_session, super_admin, creation_user_data):
     """
     Фикстура: создаёт пользователя с ролью ADMIN через SuperAdmin и авторизует его.
     """
-    new_session = admin_session()  # создаём новую сессию через admin_session()
-
+    new_session = admin_session()
     admin_data = creation_user_data.model_copy(update={"roles": [Roles.ADMIN.value]})
-
-    # создаём админа через super_admin
     super_admin.api.user_api.create_user(admin_data, expected_status=201)
-
-    # логинимся новым админом
     admin = User(
         admin_data.email,
         admin_data.password,
@@ -219,3 +199,33 @@ def registration_user_data() -> UserModel:
         passwordRepeat=random_password,
         roles=[Roles.USER.value]
     )
+
+@pytest.fixture(scope="module")
+def db_session() -> Session:
+    """
+    Фикстура, которая создает и возвращает сессию для работы с базой данных
+    После завершения теста сессия автоматически закрывается
+    """
+    db_session = get_db_session()
+    yield db_session
+    db_session.close()
+
+@pytest.fixture(scope="function")
+def db_helper(db_session) -> DBHelper:
+    """
+    Фикстура для экземпляра хелпера
+    """
+    db_helper = DBHelper(db_session)
+    return db_helper
+
+@pytest.fixture(scope="function")
+def created_test_user(db_helper):
+    """
+    Фикстура, которая создает тестового пользователя в БД
+    и удаляет его после завершения теста
+    """
+    user = db_helper.create_test_user(DataGenerator.generate_user_data())
+    yield user
+    # Cleanup после теста
+    if db_helper.get_user_by_id(user.id):
+        db_helper.delete_user(user)
