@@ -40,6 +40,7 @@ class RegisterUserResponse(BaseModel):
     email: str
     fullName: str
     createdAt: datetime
+    banned: bool | None = None
     roles: list[str] | None = None
     verified: bool | None = None
 

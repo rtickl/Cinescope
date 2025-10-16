@@ -4,7 +4,6 @@ from resources.db_creds import MoviesDbCreds
 from utils.data_generator import DataGenerator
 
 
-@pytest.mark.db
 class TestMoviesDB:
     def setup_method(self):
         # Настраиваем подключение к PostgreSQL через SQLAlchemy

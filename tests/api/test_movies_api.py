@@ -1,8 +1,6 @@
 import pytest
 from sqlalchemy import select
-
-from constants import BASE_URL, BASE_URL_MOVIES
-from custom_requester.custom_requester import CustomRequester
+from sqlalchemy.orm import Session
 from db_models.movies import MovieDBModel
 from utils.data_generator import DataGenerator
 
@@ -19,27 +17,27 @@ class TestMoviesAPI:
         assert resp.status_code == 201
         assert body["name"] == movie["name"]
 
-    def test_get_movie_by_id(self, movies_api, movie_fixture):
+    def test_get_movie_by_id(self, movies_api, create_movie):
         """
         Проверка получения фильма по ID.
         """
-        resp = movies_api.get_movie_by_id(movie_fixture)
+        resp = movies_api.get_movie_by_id(create_movie)
         body = resp.json()
         assert resp.status_code == 200
-        assert body["id"] == movie_fixture
+        assert body["id"] == create_movie
 
-    def test_update_movie(self, movies_api, movie_fixture):
+    def test_update_movie(self, movies_api, create_movie):
         """
         Проверка обновления информации о фильме.
         """
         update_data = {"price": 555}
-        resp = movies_api.update_movie(movie_fixture, update_data)
+        resp = movies_api.update_movie(create_movie, update_data)
         body = resp.json()
         assert resp.status_code == 200
         assert body["price"] == 555
 
     @pytest.mark.api
-    def test_delete_movie(self, movies_api, db_session, movie_fixture_without_deleting):
+    def test_delete_movie(self, movies_api, db_session: Session,  movie_fixture_without_deleting):
         """
         Проверка удаления фильма по ID.
         Перед удалением проверяем наличие фильма в базе — если нет, добавляем вручную.
@@ -126,6 +124,7 @@ class TestMoviesAPI:
 
         assert response.status_code == 403, f"Должен получить 403, но получил {response.status_code}"
 
+
     @pytest.mark.parametrize(
         "role_fixture, expected_status",
         [
@@ -134,18 +133,23 @@ class TestMoviesAPI:
             ("common_user", 403),
         ],
     )
-    def test_delete_movie_roles(self, request, role_fixture, expected_status):
-        super_admin = request.getfixturevalue("super_admin")
+    def test_delete_movie_roles(self, request, super_admin, expected_status, role_fixture):
+        """Проверка удаления фильма пользователями разных ролей"""
+        # создаём фильм под супер-админом
         movie_data = DataGenerator.generate_movie()
         movie_response = super_admin.api.movies_api.create_movie(movie_data, expected_status=201)
         movie_id = movie_response.json()["id"]
 
+        # получаем нужную фикстуру динамически
         user = request.getfixturevalue(role_fixture)
 
+        # пробуем удалить фильм
         delete_response = user.api.movies_api.delete_movie(movie_id, expected_status=None)
+
         assert delete_response.status_code == expected_status, (
             f"{role_fixture} получил {delete_response.status_code}, ожидалось {expected_status}"
         )
 
+        # если не удалён — очищаем супер-админом
         if delete_response.status_code != 200:
             super_admin.api.movies_api.delete_movie(movie_id, expected_status=200)

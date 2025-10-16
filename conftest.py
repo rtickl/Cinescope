@@ -2,32 +2,22 @@ from faker import Faker
 import pytest
 import requests
 from api.api_manager import ApiManager
-from constants import BASE_URL_AUTH, REGISTER_ENDPOINT, ADMIN_CREDENTIALS, Roles
-from custom_requester.custom_requester import CustomRequester
+from api.movies_api import MoviesAPI
+from constants import  Roles
 from db_requester.db_client import get_db_session
 from db_requester.db_helpers import DBHelper
 from entities.user import User
 from models.base_models import UserModel
-from resources.user_cred import SuperAdminCreds
 from utils.data_generator import DataGenerator
 from requests import Session
 faker = Faker()
+from resources.user_cred import SuperAdminCreds
 
 @pytest.fixture(scope="session")
 def api_manager():
-    """Фикстура для инициализации ApiManager с авторизацией"""
-    session = Session()
-
-    requester = CustomRequester(session=session, base_url=BASE_URL_AUTH)
-    resp = requester.send_request(
-        "POST",
-        "/login",
-        data=ADMIN_CREDENTIALS,
-        expected_status=201
-    )
-    token = resp.json()["accessToken"]
-
-    return ApiManager(session=session, token=token)
+    """Возвращает неавторизованный ApiManager с общей сессией."""
+    session = requests.Session()
+    return ApiManager(session)
 
 @pytest.fixture
 def test_user() -> UserModel:
@@ -41,29 +31,14 @@ def test_user() -> UserModel:
         roles=[Roles.USER.value]
     )
 
-@pytest.fixture(scope="session")
-def registered_user(requester, test_user):
+def registered_user(api_manager, test_user):
     """
-    Фикстура для регистрации и получения данных зарегистрированного пользователя.
+    Регистрация пользователя через ApiManager (без отдельного requester).
+    Возвращает словарь user c присвоенным id.
     """
-    response = requester.send_request(
-        method="POST",
-        endpoint=REGISTER_ENDPOINT,
-        data=test_user,
-        expected_status= 201
-    )
-    response_data = response.json()
-    registered_user = test_user.copy()
-    registered_user["id"] = response_data["id"]
-    return registered_user
-
-@pytest.fixture(scope="session")
-def requester():
-    """
-    Фикстура для создания экземпляра CustomRequester.
-    """
-    session = requests.Session()
-    return CustomRequester(session=session, base_url=BASE_URL_AUTH)
+    resp = api_manager.auth_api.register_user(user_data=test_user, expected_status=201)
+    user_id = resp.json()["id"]
+    return test_user.model_copy(update={"id": user_id})
 
 @pytest.fixture(scope="session")
 def session():
@@ -74,25 +49,21 @@ def session():
     yield http_session
     http_session.close()
 
-@pytest.fixture(scope="session")
-def movies_api(api_manager):
-    """
-      Фикстура для API фильмов.
-
-      Возвращает объект MoviesAPI, созданный в ApiManager.
-      """
-    return api_manager.movies_api
+@pytest.fixture
+def movies_api(super_admin):
+    """API фильмов с правами супер-админа."""
+    return super_admin.api.movies_api
 
 @pytest.fixture
-def movie_fixture(movies_api):
-    """Фикстура: создаёт фильм перед тестом и удаляет после"""
-    movie = DataGenerator.generate_movie()
-    resp = movies_api.create_movie(movie)
+def create_movie(super_admin):
+    """
+    Создаёт фильм перед тестом и удаляет после (с авторизацией).
+    """
+    movie_data = DataGenerator.generate_movie()
+    resp = super_admin.api.movies_api.create_movie(movie_data, expected_status=201)
     movie_id = resp.json()["id"]
-    print(f'slfjlkjflksd {movie_id}')
-
     yield movie_id
-    movies_api.delete_movie(movie_id, expected_status=200)
+    super_admin.api.movies_api.delete_movie(movie_id, expected_status=200)
 
 @pytest.fixture
 def movie_fixture_without_deleting(movies_api):
@@ -104,7 +75,22 @@ def movie_fixture_without_deleting(movies_api):
 
     yield movie_id
 
-@pytest.fixture(scope="session")
+# @pytest.fixture(scope="session")
+# def user_session():
+#     user_pool = []
+#
+#     def _create_user_session():
+#         session = requests.Session()
+#         user_session = ApiManager(session)
+#         user_pool.append(user_session)
+#         return user_session
+#
+#     yield _create_user_session
+#
+#     for user in user_pool:
+#         user.close_session()
+
+@pytest.fixture
 def user_session():
     user_pool = []
 
@@ -119,17 +105,29 @@ def user_session():
     for user in user_pool:
         user.close_session()
 
+# @pytest.fixture(scope="session")
+# def super_admin(user_session):
+#     """Создаёт ApiManager, авторизованный под супер-админом."""
+#     api_manager = ApiManager(user_session)
+#     api_manager.auth_api.authenticate(
+#         (SuperAdminCreds.USERNAME, SuperAdminCreds.PASSWORD)
+#     )
+#
+#     return api_manager
+
 @pytest.fixture
 def super_admin(user_session):
     new_session = user_session()
+
     super_admin = User(
         SuperAdminCreds.USERNAME,
         SuperAdminCreds.PASSWORD,
         [Roles.SUPER_ADMIN.value],
-        new_session
-    )
+        new_session)
+
     super_admin.api.auth_api.authenticate(super_admin.creds)
     return super_admin
+
 
 @pytest.fixture(scope="function")
 def creation_user_data(test_user: UserModel) -> UserModel:
@@ -139,8 +137,10 @@ def creation_user_data(test_user: UserModel) -> UserModel:
     })
     return updated
 
+
 @pytest.fixture
 def common_user(user_session, super_admin, creation_user_data):
+    """Создаёт обычного пользователя через супер-админа и авторизует его."""
     new_session = user_session()
     common_user = User(
         creation_user_data.email,
@@ -148,9 +148,13 @@ def common_user(user_session, super_admin, creation_user_data):
         [Roles.USER.value],
         new_session
     )
-    super_admin.api.user_api.create_user(creation_user_data)
+
+    user_data = creation_user_data.model_copy(update={"verified": True, "banned": False})
+    super_admin.api.user_api.create_user(user_data, expected_status=201)
+
     common_user.api.auth_api.authenticate(common_user.creds)
     return common_user
+
 
 @pytest.fixture(scope="session")
 def admin_session():
@@ -172,12 +176,27 @@ def admin_session():
     for admin in admin_pool:
         admin.close_session()
 
+# @pytest.fixture
+# def admin_user(admin_session, super_admin, creation_user_data):
+#     """
+#     Фикстура: создаёт пользователя с ролью ADMIN через SuperAdmin и авторизует его.
+#     """
+#     new_session = admin_session()
+#     admin_data = creation_user_data.model_copy(update={"roles": [Roles.ADMIN.value]})
+#     super_admin.user_api.create_user(admin_data, expected_status=201)
+#     admin = User(
+#         admin_data.email,
+#         admin_data.password,
+#         admin_data.roles,
+#         new_session
+#     )
+#     admin.api.auth_api.authenticate(admin.creds)
+#     return admin
 @pytest.fixture
 def admin_user(admin_session, super_admin, creation_user_data):
-    """
-    Фикстура: создаёт пользователя с ролью ADMIN через SuperAdmin и авторизует его.
-    """
-    new_session = admin_session()
+    """Фикстура: создаёт пользователя с ролью ADMIN через SuperAdmin и авторизует его."""
+    new_session = admin_session() if callable(admin_session) else admin_session
+
     admin_data = creation_user_data.model_copy(update={"roles": [Roles.ADMIN.value]})
     super_admin.api.user_api.create_user(admin_data, expected_status=201)
     admin = User(
