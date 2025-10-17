@@ -12,8 +12,6 @@ class DBClient:
     def __init__(self):
         self.conn = None
         self.logger = logging.getLogger(__name__)
-
-        # Подключаем креды в UPPERCASE стиле
         self.host = MoviesDbCreds.HOST
         self.port = MoviesDbCreds.PORT
         self.database = MoviesDbCreds.DATABASE_NAME
@@ -42,15 +40,15 @@ class DBClient:
             version = cur.fetchone()[0]
 
             self.logger.info(
-                f"{GREEN}✅ Connected successfully!{RESET}\n"
+                f"{GREEN} Connected successfully!{RESET}\n"
                 f"PostgreSQL version: {version}"
             )
-            print(f"{GREEN}✅ Connected successfully! PostgreSQL version:{RESET} {version}")
+            print(f"{GREEN} Connected successfully! PostgreSQL version:{RESET} {version}")
             cur.close()
 
         except Exception as e:
-            self.logger.error(f"{RED}❌ Database connection failed:{RESET} {e}")
-            print(f"{RED}❌ Ошибка подключения: {e}{RESET}")
+            self.logger.error(f"{RED} Database connection failed:{RESET} {e}")
+            print(f"{RED} Ошибка подключения: {e}{RESET}")
 
     def get_table_count(self):
         """Возвращает количество таблиц в текущей схеме."""
@@ -63,7 +61,7 @@ class DBClient:
                 "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';"
             )
             count = cur.fetchone()[0]
-            print(f"📊 Количество таблиц в public: {count}")
+            print(f"Количество таблиц в public: {count}")
             return count
         except Exception as e:
             self.logger.error(f"{RED}Ошибка при выполнении запроса:{RESET} {e}")
@@ -75,7 +73,7 @@ class DBClient:
         """Закрывает соединение."""
         if self.conn:
             self.conn.close()
-            print(f"{GREEN}🔒 Соединение закрыто.{RESET}")
+            print(f"{GREEN} Соединение закрыто.{RESET}")
 
 
 if __name__ == "__main__":

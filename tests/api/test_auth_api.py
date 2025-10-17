@@ -23,13 +23,6 @@ class TestAuthAPI:
         Тест на регистрацию и последующий логин пользователя.
         """
 
-        # response = api_manager.send_request(
-        #     method="POST",
-        #     endpoint=REGISTER_ENDPOINT,
-        #     data=test_user,
-        #     expected_status=None
-        # )
-
         assert response.status_code in [200, 201], \
             f"Unexpected status {response.status_code}: {response.text}"
 
@@ -37,16 +30,7 @@ class TestAuthAPI:
             "email": test_user.email,
             "password": test_user.password
         }
-
         response = api_manager.auth_api.login_user(login_data)
-
-        # login_response = api_manager.send_request(
-        #     method="POST",
-        #     endpoint=LOGIN_ENDPOINT,
-        #     data=login_data,
-        #     expected_status=201
-        # )
-
         json_resp = response.json()
 
         assert "accessToken" in json_resp
@@ -79,7 +63,6 @@ class TestAuthAPI:
         with allure.step("Проверяем, что ответ соответствует ожидаемому"):
             with allure.step("Проверка поля персональных данных"):
                 with check.check():
-                    # check.equal(register_user_response.fullName, "INCORRECT_NAME", "НЕСОВПАДЕНИЕ fullName")
                     check.equal(register_user_response.fullName, mock_response.fullName, "НЕСОВПАДЕНИЕ fullName")
                     check.equal(register_user_response.email, mock_response.email)
 

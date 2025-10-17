@@ -35,28 +35,15 @@ class DataGenerator:
     @staticmethod
     def random_string(length=8):
         """
-               Генерация случайной строки из латинских букв.
-
-               :param length: Длина строки
-               :return: случайная строка
-               """
+            Генерация случайной строки из латинских букв.
+        """
         return ''.join(random.choices(string.ascii_letters, k=length))
 
     @staticmethod
     def generate_movie():
         """
-                Генерация данных для создания фильма.
-
-                Обязательные поля:
-                - name (str)
-                - description (str)
-                - price (int)
-                - location (str: только MSK или SPB)
-                - published (bool)
-                - genreId (int)
-
-                :return: словарь с данными фильма
-                """
+            Генерация данных для создания фильма.
+        """
 
         return {
             "name": f"Movie_{DataGenerator.random_string()}",
@@ -67,31 +54,17 @@ class DataGenerator:
             "genreId": 1
         }
 
-    # @staticmethod
-    # def generate_user_data() -> dict:
-    #     """Генерирует данные для тестового пользователя"""
-    #     from uuid import uuid4
-    #
-    #     return {
-    #         'id': f'{uuid4()}',  # генерируем UUID как строку
-    #         'email': DataGenerator.generate_random_email(),
-    #         'full_name': DataGenerator.generate_random_name(),
-    #         'password': DataGenerator.generate_random_password(),
-    #         'created_at': datetime.now().isoformat(),
-    #         'updated_at': datetime.now().isoformat(),
-    #         'verified': False,
-    #         'banned': False,
-    #         'roles': '{USER}'
-    #     }
     @staticmethod
     def generate_user_data():
-        """Генерирует корректные данные пользователя"""
+        """
+            Генерирует корректные данные пользователя
+        """
         return {
             "id": str(uuid.uuid4()),
             "email": faker.email(),
-            "fullName": faker.name(),  # ✅ поле исправлено на camelCase
+            "fullName": faker.name(),
             "password": faker.password(length=10),
-            "passwordRepeat": None,  # ✅ если нужно для register, можно добавить
+            "passwordRepeat": None,
             "verified": False,
             "banned": False,
             "createdAt": datetime.now().isoformat(),
@@ -101,10 +74,7 @@ class DataGenerator:
     @staticmethod
     def generate_random_int(length: int = 5) -> int:
         """
-        Генерирует случайное целое число с заданным количеством цифр.
-
-        :param length: длина числа (по умолчанию 5)
-        :return: случайное число
+            Генерирует случайное целое число с заданным количеством цифр.
         """
         start = 10 ** (length - 1)
         end = (10 ** length) - 1
