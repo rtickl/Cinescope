@@ -1,10 +1,13 @@
 from api.api_manager import ApiManager
 from models.base_models import UserModel, RegisterUserResponse
-
 from utils.data_generator import DataGenerator
 from constants import Roles
 
 def test_register_user(api_manager: ApiManager):
+    """
+        Проверка успешной регистрации нового пользователя.
+    """
+
     pwd = DataGenerator.generate_random_password()
     model = UserModel(
         email=DataGenerator.generate_random_email(),

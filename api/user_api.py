@@ -34,6 +34,7 @@ class UserAPI(CustomRequester):
         )
 
     def create_user(self, user_data, expected_status=201):
+        """Создание пользователя."""
         return self.send_request(
             method="POST",
             endpoint="user",
@@ -42,4 +43,5 @@ class UserAPI(CustomRequester):
         )
 
     def get_user(self, user_locator, expected_status=200):
+        """Получение пользователя."""
         return self.send_request("GET", f"user/{user_locator}", expected_status=expected_status)

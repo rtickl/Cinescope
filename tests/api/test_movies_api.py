@@ -7,37 +7,40 @@ from utils.data_generator import DataGenerator
 class TestMoviesAPI:
     """Набор тестов для проверки работы Movies API."""
 
-    def test_create_movie(self, movies_api):
-        """
-        Проверка успешного создания фильма.
-        """
+    def test_create_movie(self, movies):
+        """Проверка успешного создания фильма"""
         movie = DataGenerator.generate_movie()
-        resp = movies_api.create_movie(movie)
+        resp = movies.create_movie(movie)
         body = resp.json()
-        assert resp.status_code == 201
-        assert body["name"] == movie["name"]
 
-    def test_get_movie_by_id(self, movies_api, create_movie):
+        assert body["name"] == movie["name"]
+        assert body["price"] == movie["price"]
+        assert body["description"] == movie["description"]
+
+        for field in ["id", "createdAt", "genreId"]:
+            assert field in body
+
+    def test_get_movie_by_id(self, movies, create_movie):
         """
         Проверка получения фильма по ID.
         """
-        resp = movies_api.get_movie_by_id(create_movie)
+        resp = movies.get_movie_by_id(create_movie)
         body = resp.json()
-        assert resp.status_code == 200
+
         assert body["id"] == create_movie
 
-    def test_update_movie(self, movies_api, create_movie):
+    def test_update_movie(self, movies, create_movie):
         """
         Проверка обновления информации о фильме.
         """
         update_data = {"price": 555}
-        resp = movies_api.update_movie(create_movie, update_data)
+        resp = movies.update_movie(create_movie, update_data)
         body = resp.json()
-        assert resp.status_code == 200
+
         assert body["price"] == 555
 
     @pytest.mark.api
-    def test_delete_movie(self, movies_api, db_session: Session,  movie_fixture_without_deleting):
+    def test_delete_movie(self, movies, db_session: Session,  movie_fixture_without_deleting):
         """
         Проверка удаления фильма по ID.
         Перед удалением проверяем наличие фильма в базе — если нет, добавляем вручную.
@@ -49,7 +52,7 @@ class TestMoviesAPI:
         )
 
         if not movie_in_db:
-            print(f"⚠️ Фильм с ID {movie_id} не найден, создаём новый объект в базе...")
+            print(f"Фильм с ID {movie_id} не найден, создаём новый объект в базе...")
 
             new_movie = MovieDBModel(
                 id=movie_id,
@@ -67,28 +70,25 @@ class TestMoviesAPI:
             db_session.add(new_movie)
             db_session.commit()
 
-            print(f"✅ Фильм успешно добавлен в базу: {new_movie}")
-
-        resp = movies_api.delete_movie(movie_id)
+        resp = movies.delete_movie(movie_id)
         assert resp.status_code in [200, 204], f"Неожиданный статус при удалении: {resp.status_code}"
 
-        resp = movies_api.get_movie_by_id(movie_id, expected_status=404)
+        resp = movies.get_movie_by_id(movie_id, expected_status=404)
         assert resp.status_code == 404, f"Фильм с ID {movie_id} всё ещё существует после удаления"
 
         deleted_from_db = db_session.scalar(
             select(MovieDBModel).where(MovieDBModel.id == movie_id)
         )
         assert deleted_from_db is None, f"Фильм с ID {movie_id} не был удалён из базы"
-
         print(f"Тест успешно завершён — фильм с ID {movie_id} удалён.")
 
-    def test_filter_movies(self, movies_api):
+    def test_filter_movies(self, movies):
         """
         Проверка фильтрации фильмов.
         """
-        resp = movies_api.get_movies(params={"locations": ["MSK"], "minPrice": 100})
+        resp = movies.get_movies(params={"locations": ["MSK"], "minPrice": 100})
         body = resp.json()
-        assert resp.status_code == 200
+
         assert "movies" in body
         assert all(movie["location"] == "MSK" for movie in body["movies"])
 
@@ -101,22 +101,28 @@ class TestMoviesAPI:
 
         body = response.json()
         assert body["name"] == movie["name"]
-        assert response.status_code == 201
 
 
-    def test_get_movie_invalid_id(self, movies_api):
+
+    def test_get_movie_invalid_id(self, movies):
         """
         Проверка ошибки при запросе фильма с несуществующим ID.
         """
-        resp = movies_api.get_movie_by_id(999999, expected_status=404)
+        resp = movies.get_movie_by_id(999999, expected_status=404)
         assert resp.status_code == 404
 
     def test_get_movies_list_as_super_admin(self, super_admin):
+        """
+            Проверка, что супер-админ может получить список всех фильмов.
+        """
 
         response = super_admin.api.movies_api.get_movies(expected_status=200)
         assert response.status_code == 200
 
     def test_user_cannot_create_movie(self, common_user):
+        """
+            Проверка, что обычный пользователь не может создавать фильмы.
+        """
 
         movie = DataGenerator.generate_movie()
 
@@ -140,16 +146,13 @@ class TestMoviesAPI:
         movie_response = super_admin.api.movies_api.create_movie(movie_data, expected_status=201)
         movie_id = movie_response.json()["id"]
 
-        # получаем нужную фикстуру динамически
         user = request.getfixturevalue(role_fixture)
 
-        # пробуем удалить фильм
         delete_response = user.api.movies_api.delete_movie(movie_id, expected_status=None)
 
         assert delete_response.status_code == expected_status, (
             f"{role_fixture} получил {delete_response.status_code}, ожидалось {expected_status}"
         )
 
-        # если не удалён — очищаем супер-админом
         if delete_response.status_code != 200:
             super_admin.api.movies_api.delete_movie(movie_id, expected_status=200)
