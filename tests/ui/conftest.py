@@ -29,7 +29,7 @@ def test_user() -> UserModel:
         passwordRepeat=random_password,
         roles=[Roles.USER.value]
     )
-
+@pytest.fixture(scope="function")
 def registered_user(api_manager, test_user):
     """
     Регистрация пользователя через ApiManager (без отдельного requester).
