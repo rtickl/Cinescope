@@ -18,5 +18,4 @@ def test_example(page: Page) -> None:
     expect(page.locator("#name")).to_contain_text("Name:Name_example")
     page.get_by_text("Email:main@example.com").click()
     expect(page.locator("#email")).to_contain_text("Email:main@example.com")
-    # expect(page.locator("#output")).to_contain_text("Current Address:Address")
-    # expect(page.locator("#output")).to_contain_text("Permananet Address:address")
+
